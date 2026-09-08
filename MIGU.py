@@ -288,7 +288,17 @@ def getddCalcu720p(url, pID):
             ddCalcu.append(keys[int(pID[6])])
         if i == 4:
             ddCalcu.append("a")
-    return f'{url}&ddCalcu={"".join(ddCalcu)}&sv=10004&ct=android'
+
+    play_url = f'{url}&ddCalcu={"".join(ddCalcu)}&sv=10004&ct=android'
+
+    # 必须走 https：gslbmgsplive 是 GSLB 调度域名，
+    # http 会被 302 到 http://xxx.miguvideo.com:8080（明文 + 8080 端口），
+    # 播放器若按原始域名解析子列表 01.m3u8 会拿到 661，ExoPlayer 报 2004。
+    # https 则被调度到 :443 标准端口。
+    if play_url.startswith("http://"):
+        play_url = "https://" + play_url[len("http://"):]
+
+    return play_url
 
 
 def append_All_Live(live, flag, data):

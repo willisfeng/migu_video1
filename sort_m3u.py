@@ -28,6 +28,18 @@ def parse_m3u(content):
     return channels
 
 
+def force_https(url):
+    """播放地址强制 https。
+
+    咪咕 gslbmgsplive 是 GSLB 调度域名：http 会被 302 到 :8080 明文端口，
+    播放器按原域名解析子列表会拿到 661 → ExoPlayer error_code_io_bad_status 2004。
+    https 才会被调度到 :443 标准端口。
+    """
+    if url.startswith("http://"):
+        return "https://" + url[len("http://"):]
+    return url
+
+
 def get_group_priority_and_key(extinf):
     name_match = re.search(r',(.+?)$', extinf)
     name = name_match.group(1).strip() if name_match else ""
@@ -109,9 +121,21 @@ def simplify_cctv_name(extinf):
     return extinf
 
 
+def read_input():
+    """优先读 MIGU.py 的原始输出；不存在时回退到已发布的 migu.m3u 就地修复。"""
+    import os
+    if os.path.exists(input_file):
+        with open(input_file, "r", encoding="utf-8") as f:
+            return f.read()
+    if os.path.exists(output_full):
+        print(f"[提示] 未找到 {input_file}，改用 {output_full} 就地修复")
+        with open(output_full, "r", encoding="utf-8") as f:
+            return f.read()
+    raise FileNotFoundError(f"{input_file} 和 {output_full} 都不存在")
+
+
 def main():
-    with open(input_file, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = read_input()
 
     header_match = re.match(r'(#EXTM3U.*?)(\n#EXTINF:|$)', content, re.DOTALL | re.IGNORECASE)
     header = header_match.group(1).strip() if header_match else "#EXTM3U"
@@ -122,6 +146,7 @@ def main():
     seen = {}
     unique_channels = []
     for extinf, url in channels:
+        url = force_https(url)
         tvg_id = re.search(r'tvg-id="([^"]+)"', extinf)
         tvg_name = re.search(r'tvg-name="([^"]+)"', extinf)
         key = (tvg_id.group(1) if tvg_id else "") or (tvg_name.group(1) if tvg_name else "") or extinf
